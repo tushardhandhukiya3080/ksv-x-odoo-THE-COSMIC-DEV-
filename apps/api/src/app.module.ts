@@ -11,6 +11,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { LlmModule } from './llm/llm.module';
 import { DocumentsModule } from './documents/documents.module';
 import { EventsModule } from './events/events.module';
+import { N8nModule } from './n8n/n8n.module';
 import { AuthModule } from './auth/auth.module';
 import { VendorsModule } from './vendors/vendors.module';
 import { RfqModule } from './rfq/rfq.module';
@@ -40,6 +41,7 @@ import { HealthController } from './health.controller';
     // Global infrastructure
     PrismaModule,
     EventsModule,
+    N8nModule,
     AuditModule,
     NotificationsModule,
     LlmModule,

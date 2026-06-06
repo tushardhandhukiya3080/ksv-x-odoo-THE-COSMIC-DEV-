@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { NotifChannel, SOCKET_EVENTS } from '@vendorbridge/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../events/events.service';
+import { N8nService } from '../n8n/n8n.service';
 
 export interface CreateNotificationInput {
   organizationId: string;
@@ -17,6 +18,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly events: EventsService,
+    private readonly n8n: N8nService,
   ) {}
 
   async create(input: CreateNotificationInput) {
@@ -33,6 +35,17 @@ export class NotificationsService {
     // Live push: the recipient gets the notification instantly; the org's dashboards refresh.
     this.events.emitToUser(input.userId, SOCKET_EVENTS.NOTIFICATION_NEW, notif);
     this.events.emitToOrg(input.organizationId, SOCKET_EVENTS.DASHBOARD_UPDATE);
+
+    // Outbound dispatch to n8n (email / WhatsApp). Fire-and-forget, degrades gracefully.
+    const user = await this.prisma.user.findUnique({
+      where: { id: input.userId },
+      select: { email: true, name: true },
+    });
+    this.n8n.dispatch(
+      input.type,
+      { title: input.title, body: input.body, name: user?.name ?? '' },
+      user?.email,
+    );
     return notif;
   }
 
@@ -44,7 +57,7 @@ export class NotificationsService {
   ) {
     const users = await this.prisma.user.findMany({
       where: { organizationId, role: { in: roles as never }, isActive: true },
-      select: { id: true },
+      select: { id: true, email: true, name: true },
     });
     if (users.length === 0) return;
     await this.prisma.notification.createMany({
@@ -60,6 +73,11 @@ export class NotificationsService {
     // Live push to each recipient + role rooms, and refresh org dashboards.
     for (const u of users) {
       this.events.emitToUser(u.id, SOCKET_EVENTS.NOTIFICATION_NEW, { type: payload.type });
+      this.n8n.dispatch(
+        payload.type,
+        { title: payload.title, body: payload.body, name: u.name },
+        u.email,
+      );
     }
     for (const role of roles) {
       this.events.emitToRole(organizationId, role, payload.type, { title: payload.title });
