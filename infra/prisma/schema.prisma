@@ -1,0 +1,549 @@
+// VendorBridge — Prisma schema (Spec §4).
+// Multi-tenant: every business table carries organizationId; all queries are
+// scoped by the org from the JWT. Money is Decimal, computed server-side only.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────── Enums ────────────────────────────
+enum Role {
+  PROCUREMENT_OFFICER
+  VENDOR
+  APPROVER
+  ADMIN
+}
+
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+}
+
+enum RfqStatus {
+  DRAFT
+  OPEN
+  CLOSED
+  AWARDED
+  CANCELLED
+}
+
+enum InvitationStatus {
+  INVITED
+  VIEWED
+  SUBMITTED
+  DECLINED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SUBMITTED
+  WITHDRAWN
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PoStatus {
+  ISSUED
+  ACKNOWLEDGED
+  FULFILLED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  CREATED
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum ShipMode {
+  LAND
+  AIR
+  SEA
+}
+
+enum ShipStatus {
+  PENDING
+  IN_TRANSIT
+  CUSTOMS
+  DELIVERED
+  DELAYED
+}
+
+enum NotifChannel {
+  IN_APP
+  EMAIL
+  WHATSAPP
+}
+
+// ──────────────────────────── Core tenancy ────────────────────────────
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  gstin     String?
+  createdAt DateTime @default(now())
+
+  users            User[]
+  vendors          Vendor[]
+  vendorCategories VendorCategory[]
+  rfqs             Rfq[]
+  approvals        Approval[]
+  purchaseOrders   PurchaseOrder[]
+  invoices         Invoice[]
+  attachments      Attachment[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String   @unique
+  passwordHash   String
+  name           String
+  role           Role
+  isActive       Boolean  @default(true)
+  totpSecret     String?
+  createdAt      DateTime @default(now())
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdRfqs   Rfq[]          @relation("RfqCreatedBy")
+  approvalSteps ApprovalStep[]
+  notifications Notification[]
+  vendorProfile Vendor?        @relation("VendorUser")
+
+  @@index([organizationId])
+}
+
+// ──────────────────────────── Vendors ────────────────────────────
+model VendorCategory {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  vendors      Vendor[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model Vendor {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String?      @unique // optional portal login
+  name           String
+  categoryId     String?
+  gstin          String?
+  email          String
+  phone          String?
+  address        String?
+  whatsappOptIn  Boolean      @default(true)
+  status         VendorStatus @default(ACTIVE)
+  rating         Float        @default(0)
+  createdAt      DateTime     @default(now())
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?           @relation("VendorUser", fields: [userId], references: [id])
+  category       VendorCategory? @relation(fields: [categoryId], references: [id])
+  invitations    RfqInvitation[]
+  quotations     Quotation[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([categoryId])
+}
+
+// ──────────────────────────── RFQ ────────────────────────────
+model Rfq {
+  id             String    @id @default(cuid())
+  organizationId String
+  createdById    String
+  title          String
+  description    String?
+  deadline       DateTime
+  status         RfqStatus @default(DRAFT)
+  createdAt      DateTime  @default(now())
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User            @relation("RfqCreatedBy", fields: [createdById], references: [id])
+  items        RfqItem[]
+  invitations  RfqInvitation[]
+  quotations   Quotation[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model RfqItem {
+  id          String  @id @default(cuid())
+  rfqId       String
+  name        String
+  description String?
+  quantity    Int
+  unit        String
+
+  rfq            Rfq             @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  quotationItems QuotationItem[]
+
+  @@index([rfqId])
+}
+
+model RfqInvitation {
+  id       String           @id @default(cuid())
+  rfqId    String
+  vendorId String
+  status   InvitationStatus @default(INVITED)
+  token    String           @unique
+  sentAt   DateTime         @default(now())
+
+  rfq    Rfq    @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor Vendor @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  @@unique([rfqId, vendorId])
+  @@index([vendorId])
+}
+
+// ──────────────────────────── Quotations ────────────────────────────
+model Quotation {
+  id          String          @id @default(cuid())
+  rfqId       String
+  vendorId    String
+  status      QuotationStatus @default(DRAFT)
+  deliveryDays Int
+  validUntil  DateTime?
+  notes       String?
+  totalAmount Decimal         @default(0) @db.Decimal(14, 2)
+  currency    String          @default("INR")
+  submittedAt DateTime?
+  createdAt   DateTime        @default(now())
+
+  rfq           Rfq             @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  vendor        Vendor          @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+  items         QuotationItem[]
+  purchaseOrder PurchaseOrder?
+
+  @@unique([rfqId, vendorId])
+  @@index([rfqId])
+  @@index([vendorId])
+}
+
+model QuotationItem {
+  id          String  @id @default(cuid())
+  quotationId String
+  rfqItemId   String
+  unitPrice   Decimal @db.Decimal(14, 2)
+  quantity    Int
+  taxRate     Decimal @default(0) @db.Decimal(6, 3)
+  lineTotal   Decimal @db.Decimal(14, 2)
+
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  rfqItem   RfqItem   @relation(fields: [rfqItemId], references: [id])
+
+  @@index([quotationId])
+  @@index([rfqItemId])
+}
+
+model QuotationAnalysis {
+  id                     String   @id @default(cuid())
+  rfqId                  String
+  recommendedQuotationId String?
+  summary                String
+  reasoningJson          Json
+  riskFlagsJson          Json
+  model                  String
+  quotationsHash         String // cache key: hash of the quotation set analyzed
+  generatedAt            DateTime @default(now())
+
+  @@index([rfqId])
+  @@unique([rfqId, quotationsHash])
+}
+
+// ──────────────────────────── Approvals ────────────────────────────
+model Approval {
+  id             String         @id @default(cuid())
+  organizationId String
+  subjectType    String // QUOTATION | PO
+  subjectId      String
+  status         ApprovalStatus @default(PENDING)
+  currentStep    Int            @default(1)
+  createdAt      DateTime       @default(now())
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  steps        ApprovalStep[]
+
+  @@index([organizationId])
+  @@index([subjectType, subjectId])
+}
+
+model ApprovalStep {
+  id         String         @id @default(cuid())
+  approvalId String
+  approverId String
+  order      Int
+  decision   ApprovalStatus @default(PENDING)
+  remarks    String?
+  decidedAt  DateTime?
+
+  approval Approval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  approver User     @relation(fields: [approverId], references: [id])
+
+  @@index([approvalId])
+  @@index([approverId])
+}
+
+// ──────────────────────────── Purchase orders ────────────────────────────
+model PurchaseOrder {
+  id             String   @id @default(cuid())
+  organizationId String
+  poNumber       String   @unique
+  quotationId    String   @unique
+  vendorId       String
+  status         PoStatus @default(ISSUED)
+  totalAmount    Decimal  @db.Decimal(14, 2)
+  currency       String   @default("INR")
+  signatureId    String?
+  issuedAt       DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  quotation    Quotation    @relation(fields: [quotationId], references: [id])
+  vendor       Vendor       @relation(fields: [vendorId], references: [id])
+  items        PoItem[]
+  invoice      Invoice?
+  shipment     Shipment?
+
+  @@index([organizationId])
+  @@index([vendorId])
+}
+
+model PoItem {
+  id          String  @id @default(cuid())
+  poId        String
+  description String
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(14, 2)
+  taxRate     Decimal @default(0) @db.Decimal(6, 3)
+  lineTotal   Decimal @db.Decimal(14, 2)
+
+  po PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  @@index([poId])
+}
+
+// ──────────────────────────── Invoices & payments ────────────────────────────
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  invoiceNumber  String        @unique
+  poId           String        @unique
+  status         InvoiceStatus @default(DRAFT)
+  subtotal       Decimal       @db.Decimal(14, 2)
+  taxTotal       Decimal       @db.Decimal(14, 2)
+  grandTotal     Decimal       @db.Decimal(14, 2)
+  currency       String        @default("INR")
+  dueDate        DateTime?
+  pdfUrl         String?
+  signatureId    String?
+  createdAt      DateTime      @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  po           PurchaseOrder @relation(fields: [poId], references: [id])
+  items        InvoiceItem[]
+  payments     Payment[]
+
+  @@index([organizationId])
+  @@index([status])
+}
+
+model InvoiceItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  quantity    Int
+  unitPrice   Decimal @db.Decimal(14, 2)
+  taxRate     Decimal @default(0) @db.Decimal(6, 3)
+  lineTotal   Decimal @db.Decimal(14, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  invoiceId         String
+  provider          String        @default("razorpay")
+  razorpayOrderId   String?
+  razorpayPaymentId String?       @unique
+  amount            Decimal       @db.Decimal(14, 2)
+  currency          String        @default("INR")
+  status            PaymentStatus @default(CREATED)
+  rawWebhookJson    Json?
+  createdAt         DateTime      @default(now())
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+// ──────────────────────────── Logistics (Phase 3) ────────────────────────────
+model Shipment {
+  id          String     @id @default(cuid())
+  poId        String     @unique
+  mode        ShipMode
+  carrier     String?
+  trackingRef String?
+  originName  String
+  originLat   Float
+  originLng   Float
+  destName    String
+  destLat     Float
+  destLng     Float
+  status      ShipStatus @default(PENDING)
+  etaAt       DateTime?
+  currentLat  Float?
+  currentLng  Float?
+  updatedAt   DateTime   @updatedAt
+
+  po     PurchaseOrder   @relation(fields: [poId], references: [id], onDelete: Cascade)
+  events ShipmentEvent[]
+}
+
+model ShipmentEvent {
+  id         String     @id @default(cuid())
+  shipmentId String
+  status     ShipStatus
+  lat        Float?
+  lng        Float?
+  note       String?
+  occurredAt DateTime   @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([shipmentId])
+}
+
+// ──────────────────────────── Attachments / signatures / audit ────────────────────────────
+model Attachment {
+  id             String   @id @default(cuid())
+  organizationId String
+  ownerType      String
+  ownerId        String
+  fileName       String
+  mimeType       String
+  sizeBytes      Int
+  storageKey     String
+  uploadedById   String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([ownerType, ownerId])
+}
+
+model DigitalSignature {
+  id          String   @id @default(cuid())
+  subjectType String
+  subjectId   String
+  signerId    String
+  algorithm   String
+  payloadHash String
+  signature   String
+  publicKey   String
+  signedAt    DateTime @default(now())
+
+  @@index([subjectType, subjectId])
+}
+
+// Append-only, hash-chained. Never UPDATE or DELETE rows in this table.
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorId        String?
+  action         String
+  entityType     String
+  entityId       String
+  dataHash       String
+  prevHash       String
+  hash           String
+  metadataJson   Json?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+}
+
+model Notification {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  type           String
+  title          String
+  body           String
+  channel        NotifChannel @default(IN_APP)
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([organizationId])
+}
+
+// ──────────────────────────── Global trade (Phase 4 — build last) ────────────────────────────
+model TradeProfile {
+  id               String   @id @default(cuid())
+  organizationId   String   @unique
+  type             String // BUYER | SUPPLIER | BOTH
+  country          String
+  incotermsDefault String?
+  currencies       String[]
+}
+
+model TradeConnection {
+  id           String   @id @default(cuid())
+  fromOrgId    String
+  toOrgId      String
+  relationship String // B2B | P2P
+  status       String   @default("REQUESTED")
+  createdAt    DateTime @default(now())
+
+  @@unique([fromOrgId, toOrgId])
+}
+
+model Listing {
+  id             String   @id @default(cuid())
+  organizationId String
+  title          String
+  description    String?
+  priceFrom      Decimal? @db.Decimal(14, 2)
+  currency       String   @default("USD")
+  moq            Int?
+  hsCode         String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}

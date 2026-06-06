@@ -1,0 +1,14 @@
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+.git
+.github
+*.log
+.env
+.env.*
+!.env.example
+.docker-data
+.local-storage
+infra/prisma/migrations/dev.db*
+VendorBridge_Build_Spec.*

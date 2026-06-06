@@ -1,0 +1,33 @@
+# Caddy reverse proxy — automatic HTTPS for every subdomain.
+# Domain + email come from the environment (set DOMAIN and ACME_EMAIL in .env.production).
+# DNS: point  app.<DOMAIN>  api.<DOMAIN>  n8n.<DOMAIN>  A-records at the VPS IP.
+
+{
+	email {$ACME_EMAIL}
+}
+
+# Web (Next.js)
+app.{$DOMAIN} {
+	encode gzip zstd
+	reverse_proxy web:3000
+}
+
+# API (NestJS) — also receives Razorpay webhooks and n8n callbacks
+api.{$DOMAIN} {
+	encode gzip zstd
+	reverse_proxy api:4000
+	header {
+		Strict-Transport-Security "max-age=31536000;"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
+
+# n8n automation UI
+n8n.{$DOMAIN} {
+	encode gzip zstd
+	reverse_proxy n8n:5678
+}
+
+# Meilisearch and MinIO stay internal (reached over the compose network only).
+# Files are served to clients via presigned URLs minted by the API.

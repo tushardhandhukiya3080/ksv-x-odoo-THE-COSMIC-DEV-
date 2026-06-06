@@ -1,0 +1,29 @@
+{
+  "name": "vendorbridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "VendorBridge — Procurement & Vendor Management ERP",
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "db:generate": "pnpm --filter @vendorbridge/prisma generate",
+    "db:migrate": "pnpm --filter @vendorbridge/prisma migrate",
+    "db:seed": "pnpm --filter @vendorbridge/prisma seed",
+    "db:studio": "pnpm --filter @vendorbridge/prisma studio",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "prettier": "^3.3.3",
+    "turbo": "^2.3.3",
+    "typescript": "^5.6.3"
+  }
+}
