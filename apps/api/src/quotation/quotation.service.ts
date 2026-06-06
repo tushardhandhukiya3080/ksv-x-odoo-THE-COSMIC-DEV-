@@ -12,11 +12,13 @@ import {
   computeTotals,
   computeLine,
   Role,
+  SOCKET_EVENTS,
 } from '@vendorbridge/shared';
 import { Prisma } from '@vendorbridge/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EventsService } from '../events/events.service';
 
 @Injectable()
 export class QuotationService {
@@ -24,6 +26,7 @@ export class QuotationService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly events: EventsService,
   ) {}
 
   // ─────────────── Vendor portal (token-based) ───────────────
@@ -160,6 +163,10 @@ export class QuotationService {
       type: 'QUOTATION_RECEIVED',
       title: 'New quotation received',
       body: `${invitation.vendor.name} submitted a quotation for "${invitation.rfq.title}".`,
+    });
+    this.events.emitToOrg(orgId, SOCKET_EVENTS.QUOTATION_RECEIVED, {
+      rfqId: invitation.rfqId,
+      quotationId,
     });
 
     return submitted;

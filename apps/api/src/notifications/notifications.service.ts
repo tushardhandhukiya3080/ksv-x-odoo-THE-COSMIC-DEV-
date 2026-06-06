@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { NotifChannel } from '@vendorbridge/shared';
+import { NotifChannel, SOCKET_EVENTS } from '@vendorbridge/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { EventsService } from '../events/events.service';
 
 export interface CreateNotificationInput {
   organizationId: string;
@@ -13,10 +14,13 @@ export interface CreateNotificationInput {
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly events: EventsService,
+  ) {}
 
-  create(input: CreateNotificationInput) {
-    return this.prisma.notification.create({
+  async create(input: CreateNotificationInput) {
+    const notif = await this.prisma.notification.create({
       data: {
         organizationId: input.organizationId,
         userId: input.userId,
@@ -26,6 +30,10 @@ export class NotificationsService {
         channel: input.channel ?? NotifChannel.IN_APP,
       },
     });
+    // Live push: the recipient gets the notification instantly; the org's dashboards refresh.
+    this.events.emitToUser(input.userId, SOCKET_EVENTS.NOTIFICATION_NEW, notif);
+    this.events.emitToOrg(input.organizationId, SOCKET_EVENTS.DASHBOARD_UPDATE);
+    return notif;
   }
 
   /** Notify every user holding one of the given roles in an org. */
@@ -49,6 +57,14 @@ export class NotificationsService {
         channel: payload.channel ?? NotifChannel.IN_APP,
       })),
     });
+    // Live push to each recipient + role rooms, and refresh org dashboards.
+    for (const u of users) {
+      this.events.emitToUser(u.id, SOCKET_EVENTS.NOTIFICATION_NEW, { type: payload.type });
+    }
+    for (const role of roles) {
+      this.events.emitToRole(organizationId, role, payload.type, { title: payload.title });
+    }
+    this.events.emitToOrg(organizationId, SOCKET_EVENTS.DASHBOARD_UPDATE);
   }
 
   list(organizationId: string, userId: string) {

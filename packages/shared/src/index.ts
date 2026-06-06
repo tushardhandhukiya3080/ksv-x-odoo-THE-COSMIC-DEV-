@@ -7,6 +7,8 @@ export * from './schemas/vendor.js';
 export * from './schemas/rfq.js';
 export * from './schemas/quotation.js';
 export * from './schemas/workflow.js';
+export * from './schemas/shipment.js';
+export * from './schemas/trade.js';
 
 // Common API response envelope (Spec §8).
 export interface ApiError {

@@ -11,7 +11,7 @@
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
-    "seed": "tsx seed.ts",
+    "seed": "prisma db seed",
     "studio": "prisma studio",
     "format": "prisma format"
   },

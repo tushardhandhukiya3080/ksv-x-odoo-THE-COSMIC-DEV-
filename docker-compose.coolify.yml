@@ -124,8 +124,29 @@ services:
       echo 'MinIO bucket ready';
       "
 
+  # Dedicated n8n for THIS project (separate container + its own subdomain).
+  # In Coolify: set "Domains for n8n" to e.g. https://vendorbridgen8n.thecosmicdev.net,
+  # then set N8N_HOST=vendorbridgen8n.thecosmicdev.net and
+  # N8N_WEBHOOK_PUBLIC=https://vendorbridgen8n.thecosmicdev.net/ in this resource's env.
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    environment:
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: 5678
+      N8N_PROTOCOL: ${N8N_PROTOCOL:-https}
+      WEBHOOK_URL: ${N8N_WEBHOOK_PUBLIC:-http://localhost:5678/}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      GENERIC_TIMEZONE: ${TZ:-Asia/Kolkata}
+    expose:
+      - "5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+
 volumes:
   postgres_data:
   redis_data:
   meili_data:
   minio_data:
+  n8n_data:

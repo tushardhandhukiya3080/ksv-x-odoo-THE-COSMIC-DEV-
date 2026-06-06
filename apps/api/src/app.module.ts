@@ -10,6 +10,7 @@ import { AuditModule } from './audit/audit.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { LlmModule } from './llm/llm.module';
 import { DocumentsModule } from './documents/documents.module';
+import { EventsModule } from './events/events.module';
 import { AuthModule } from './auth/auth.module';
 import { VendorsModule } from './vendors/vendors.module';
 import { RfqModule } from './rfq/rfq.module';
@@ -21,6 +22,8 @@ import { PaymentModule } from './payment/payment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/reports.module';
 import { UsersModule } from './users/users.module';
+import { ShipmentModule } from './shipment/shipment.module';
+import { TradeModule } from './trade/trade.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -36,6 +39,7 @@ import { HealthController } from './health.controller';
 
     // Global infrastructure
     PrismaModule,
+    EventsModule,
     AuditModule,
     NotificationsModule,
     LlmModule,
@@ -53,6 +57,8 @@ import { HealthController } from './health.controller';
     DashboardModule,
     ReportsModule,
     UsersModule,
+    ShipmentModule,
+    TradeModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

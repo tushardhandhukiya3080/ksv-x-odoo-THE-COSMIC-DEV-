@@ -22,6 +22,8 @@ const NAV: NavItem[] = [
   { href: '/approvals', label: 'Approvals', roles: [Role.ADMIN, Role.APPROVER] },
   { href: '/purchase-orders', label: 'Purchase Orders', roles: [Role.ADMIN, Role.PROCUREMENT_OFFICER, Role.APPROVER] },
   { href: '/invoices', label: 'Invoices', roles: [Role.ADMIN, Role.PROCUREMENT_OFFICER, Role.APPROVER] },
+  { href: '/shipments', label: 'Shipments', roles: [Role.ADMIN, Role.PROCUREMENT_OFFICER, Role.APPROVER] },
+  { href: '/trade', label: 'Global Trade', roles: [Role.ADMIN, Role.PROCUREMENT_OFFICER] },
   { href: '/reports', label: 'Reports', roles: [Role.ADMIN, Role.PROCUREMENT_OFFICER, Role.APPROVER] },
 ];
 

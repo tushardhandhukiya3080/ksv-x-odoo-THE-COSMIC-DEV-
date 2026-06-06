@@ -10,10 +10,12 @@ import {
   ApprovalStatus,
   RfqStatus,
   Role,
+  SOCKET_EVENTS,
 } from '@vendorbridge/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { EventsService } from '../events/events.service';
 
 @Injectable()
 export class ApprovalService {
@@ -21,6 +23,7 @@ export class ApprovalService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly notifications: NotificationsService,
+    private readonly events: EventsService,
   ) {}
 
   async create(organizationId: string, actorId: string, input: CreateApprovalInput) {
@@ -183,6 +186,10 @@ export class ApprovalService {
       type: 'APPROVAL_UPDATED',
       title: `Approval ${finalStatus === ApprovalStatus.PENDING ? 'advanced' : finalStatus.toLowerCase()}`,
       body: `${approval.subjectType} approval was ${input.decision.toLowerCase()}.`,
+    });
+    this.events.emitToOrg(organizationId, SOCKET_EVENTS.APPROVAL_UPDATED, {
+      approvalId,
+      status: finalStatus,
     });
 
     return this.get(organizationId, approvalId);
