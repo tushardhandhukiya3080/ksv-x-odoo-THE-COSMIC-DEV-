@@ -1,0 +1,31 @@
+{
+  "name": "ksv_extension",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:css": "tailwindcss -i ./src/popup.css -o ./dist/popup.css --minify",
+    "build:js": "webpack --mode production",
+    "build": "npm run build:js && npm run build:css",
+    "dev:css": "tailwindcss -i ./src/popup.css -o ./dist/popup.css --watch",
+    "dev:js": "webpack --mode development --watch",
+    "dev": "npm run build:js && npm run dev:css & npm run dev:js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "@tailwindcss/cli": "^4.3.0",
+    "babel-loader": "^10.1.1",
+    "copy-webpack-plugin": "^14.0.0",
+    "tailwindcss": "^4.3.0",
+    "webpack": "^5.107.2",
+    "webpack-cli": "^7.0.3"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.3"
+  }
+}

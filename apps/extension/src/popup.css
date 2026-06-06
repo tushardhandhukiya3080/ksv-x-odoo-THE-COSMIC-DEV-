@@ -1,0 +1,9 @@
+/*
+ * popup.css — Tailwind v4 source for the VendorBridge Sidekick popup.
+ *
+ * Tailwind CLI scans popup.html + popup.js and emits only the
+ * utility classes actually used. The output lands in dist/popup.css
+ * which popup.html references with a plain <link> tag — fully
+ * compatible with the MV3 extension_pages CSP (no inline styles).
+ */
+@import "tailwindcss";
