@@ -1,0 +1,19 @@
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+
+# ── Build output — load dist/ locally, never commit it ────────────────────────
+dist/
+
+# ── Sensitive dev tokens — never commit populated values ──────────────────────
+# Rename to seed_tokens.json.example before committing the template.
+# Teammates receive real tokens through a secure channel (password manager / DM).
+seed_tokens.json
+
+# ── Editor / OS artefacts ─────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
+
+# ── Environment files ─────────────────────────────────────────────────────────
+.env
+.env.local
